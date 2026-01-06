@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import { Activity, ArrowRight, RefreshCcw, Settings, Play, FlaskConical, Gamepad2, Wallet, TrendingUp, AlertTriangle, CheckCircle, Info, ChevronDown, ChevronUp } from 'lucide-react'
+import { Activity, ArrowRight, RefreshCcw, Settings, Play, FlaskConical, Gamepad2, Wallet, TrendingUp, AlertTriangle, CheckCircle, Info, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import SettingsPanel from './components/SettingsPanel'
 import StatsPanel from './components/StatsPanel'
 import ExchangeStatus from './components/ExchangeStatus'
 import AutoTraderPanel from './components/AutoTraderPanel'
+import { getTradeUrl } from './utils/exchangeUrls'
 
 // API URL - на проде используем прокси через Vercel (/api/v1)
 // Локально - напрямую к серверу
@@ -44,6 +45,28 @@ const RiskBadge = ({ level }) => {
       <Icon className="w-3 h-3" />
       {label}
     </span>
+  )
+}
+
+// Компонент ссылки на биржу
+const ExchangeLink = ({ exchange, pair, children, className = '' }) => {
+  const url = getTradeUrl(exchange, pair)
+  
+  if (!url) {
+    return <span className={className}>{children}</span>
+  }
+  
+  return (
+    <a 
+      href={url} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1 hover:underline ${className}`}
+      title={`Открыть ${pair} на ${exchange}`}
+    >
+      {children}
+      <ExternalLink className="w-3 h-3 opacity-60" />
+    </a>
   )
 }
 
@@ -114,7 +137,13 @@ const SpreadCard = ({ data, onTrade, tradingMode }) => {
         <div className="flex items-center justify-between text-sm mb-3">
           <div className="flex flex-col">
             <span className="text-slate-400 text-xs">ПОКУПКА</span>
-            <span className="font-semibold text-slate-700">{data.buy_exchange}</span>
+            <ExchangeLink 
+              exchange={data.buy_exchange} 
+              pair={data.pair}
+              className="font-semibold text-green-700 hover:text-green-800"
+            >
+              {data.buy_exchange}
+            </ExchangeLink>
             <span className="text-xs text-slate-400">${data.buy_price?.toFixed(6)}</span>
             {liquidity?.buy && (
               <div className="mt-1">
@@ -125,7 +154,13 @@ const SpreadCard = ({ data, onTrade, tradingMode }) => {
           <ArrowRight className="w-4 h-4 text-slate-300" />
           <div className="flex flex-col text-right">
             <span className="text-slate-400 text-xs">ПРОДАЖА</span>
-            <span className="font-semibold text-slate-700">{data.sell_exchange}</span>
+            <ExchangeLink 
+              exchange={data.sell_exchange} 
+              pair={data.pair}
+              className="font-semibold text-red-700 hover:text-red-800"
+            >
+              {data.sell_exchange}
+            </ExchangeLink>
             <span className="text-xs text-slate-400">${data.sell_price?.toFixed(6)}</span>
             {liquidity?.sell && (
               <div className="mt-1">
@@ -176,6 +211,28 @@ const SpreadCard = ({ data, onTrade, tradingMode }) => {
             </div>
           ) : liquidity ? (
             <div className="pt-3 space-y-3">
+              {/* Быстрые ссылки на биржи */}
+              <div className="flex gap-2 justify-center">
+                <a 
+                  href={getTradeUrl(data.buy_exchange, data.pair)} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 text-xs rounded-full hover:bg-green-200 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Купить на {data.buy_exchange}
+                </a>
+                <a 
+                  href={getTradeUrl(data.sell_exchange, data.pair)} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs rounded-full hover:bg-red-200 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Продать на {data.sell_exchange}
+                </a>
+              </div>
+              
               {/* Slippage */}
               <div>
                 <h4 className="text-xs font-semibold text-slate-500 mb-2">📉 SLIPPAGE</h4>
