@@ -6,8 +6,9 @@ import StatsPanel from './components/StatsPanel'
 import ExchangeStatus from './components/ExchangeStatus'
 import AutoTraderPanel from './components/AutoTraderPanel'
 
-// API URL - берём из переменных окружения или используем localhost для разработки
-const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+// API URL - на проде используем прокси через Vercel (/api/v1)
+// Локально - напрямую к серверу
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
 // Компонент индикатора ликвидности
 const LiquidityBadge = ({ score, size = 'sm' }) => {
