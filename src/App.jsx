@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
-import { Activity, ArrowRight, RefreshCcw, Settings, Play, FlaskConical, Gamepad2, Wallet, TrendingUp, AlertTriangle, CheckCircle, Info, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { Activity, ArrowRight, RefreshCcw, Settings, Play, FlaskConical, Gamepad2, Wallet, TrendingUp, AlertTriangle, CheckCircle, Info, ChevronDown, ChevronUp, ExternalLink, Filter, Sparkles } from 'lucide-react'
 import SettingsPanel from './components/SettingsPanel'
 import StatsPanel from './components/StatsPanel'
 import ExchangeStatus from './components/ExchangeStatus'
@@ -67,6 +67,27 @@ const ExchangeLink = ({ exchange, pair, children, className = '' }) => {
       {children}
       <ExternalLink className="w-3 h-3 opacity-60" />
     </a>
+  )
+}
+
+// Компонент переключателя фильтра
+const FilterToggle = ({ enabled, onChange, icon: Icon, label, description }) => {
+  return (
+    <button
+      onClick={() => onChange(!enabled)}
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
+        enabled 
+          ? 'bg-blue-100 text-blue-700 border border-blue-300' 
+          : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
+      }`}
+      title={description}
+    >
+      <Icon className="w-4 h-4" />
+      <span className="font-medium">{label}</span>
+      <span className={`text-xs px-1.5 py-0.5 rounded ${enabled ? 'bg-blue-200' : 'bg-slate-200'}`}>
+        {enabled ? 'ВКЛ' : 'ВЫКЛ'}
+      </span>
+    </button>
   )
 }
 
@@ -344,6 +365,7 @@ const TradingModeSelector = ({ mode, onChange, status }) => {
   )
 }
 
+
 function App() {
   const [spreads, setSpreads] = useState([])
   const [loading, setLoading] = useState(false)
@@ -351,6 +373,11 @@ function App() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [tradingStatus, setTradingStatus] = useState(null)
   const [tradingMode, setTradingMode] = useState('simulation')
+  
+  // === УМНЫЕ ФИЛЬТРЫ ===
+  const [qualityFilterEnabled, setQualityFilterEnabled] = useState(true)  // ВКЛ по умолчанию
+  const [dedupFilterEnabled, setDedupFilterEnabled] = useState(false)     // ВЫКЛ по умолчанию
+  const MAX_SPREAD_PCT = 100.0  // Спреды >100% = битые данные
 
   // Загрузка статуса торгового модуля
   const fetchTradingStatus = useCallback(async () => {
@@ -382,6 +409,59 @@ function App() {
       setLoading(false)
     }
   }, [])
+
+
+  // === ФУНКЦИИ ФИЛЬТРАЦИИ ===
+  
+  // Фильтр качества: убирает спреды >100% (битые данные)
+  const filterQualitySignals = useCallback((spreadsData) => {
+    if (!qualityFilterEnabled) return spreadsData
+    
+    return spreadsData.filter(spread => {
+      const spreadPct = spread.net_spread_pct || spread.spread_pct || 0
+      return spreadPct <= MAX_SPREAD_PCT
+    })
+  }, [qualityFilterEnabled])
+  
+  // Фильтр дубликатов: оставляет лучший сигнал для каждой пары
+  const filterBestSignalsOnly = useCallback((spreadsData) => {
+    if (!dedupFilterEnabled) return spreadsData
+    
+    const bestByPair = {}
+    
+    for (const spread of spreadsData) {
+      const pair = spread.pair
+      const spreadPct = spread.net_spread_pct || spread.spread_pct || 0
+      
+      if (!bestByPair[pair] || spreadPct > (bestByPair[pair].net_spread_pct || bestByPair[pair].spread_pct || 0)) {
+        bestByPair[pair] = spread
+      }
+    }
+    
+    return Object.values(bestByPair)
+  }, [dedupFilterEnabled])
+  
+  // Применяем фильтры к спредам
+  const filteredSpreads = useMemo(() => {
+    let result = [...spreads]
+    result = filterQualitySignals(result)
+    result = filterBestSignalsOnly(result)
+    return result
+  }, [spreads, filterQualitySignals, filterBestSignalsOnly])
+  
+  // Статистика фильтрации
+  const filterStats = useMemo(() => {
+    const total = spreads.length
+    const afterQuality = filterQualitySignals(spreads).length
+    const afterDedup = filteredSpreads.length
+    
+    return {
+      total,
+      filtered: total - afterDedup,
+      qualityFiltered: total - afterQuality,
+      dedupFiltered: afterQuality - afterDedup,
+    }
+  }, [spreads, filteredSpreads, filterQualitySignals])
 
 
   const executeTrade = async (spread) => {
@@ -424,7 +504,7 @@ function App() {
     return () => clearInterval(interval)
   }, [autoRefresh, fetchSpreads])
 
-  const profitableSpreads = spreads.filter(s => (s.net_spread_pct || s.spread_pct) > 0)
+  const profitableSpreads = filteredSpreads.filter(s => (s.net_spread_pct || s.spread_pct) > 0)
 
 
   return (
@@ -491,6 +571,43 @@ function App() {
             <AutoTraderPanel />
             
             <StatsPanel />
+            
+            {/* === ПАНЕЛЬ УМНЫХ ФИЛЬТРОВ === */}
+            <div className="bg-white rounded-xl p-4 shadow-sm border">
+              <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Умные фильтры
+              </h3>
+              <div className="space-y-2">
+                <FilterToggle
+                  enabled={qualityFilterEnabled}
+                  onChange={setQualityFilterEnabled}
+                  icon={Sparkles}
+                  label="Качество"
+                  description="Фильтрует спреды >100% (битые данные)"
+                />
+                <FilterToggle
+                  enabled={dedupFilterEnabled}
+                  onChange={setDedupFilterEnabled}
+                  icon={TrendingUp}
+                  label="Дубликаты"
+                  description="Оставляет лучший сигнал для каждой пары"
+                />
+              </div>
+              {filterStats.filtered > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+                  Отфильтровано: {filterStats.filtered} из {filterStats.total}
+                  {filterStats.qualityFiltered > 0 && (
+                    <span className="block">• Качество: {filterStats.qualityFiltered}</span>
+                  )}
+                  {filterStats.dedupFiltered > 0 && (
+                    <span className="block">• Дубликаты: {filterStats.dedupFiltered}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            
             <div className="bg-white rounded-xl p-4 shadow-sm border">
               <h3 className="text-sm font-semibold text-slate-600 mb-2">Сводка</h3>
               <div className="space-y-2 text-sm">
@@ -499,13 +616,17 @@ function App() {
                   <span className="font-medium">{spreads.length}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-slate-500">После фильтров:</span>
+                  <span className="font-medium text-blue-600">{filteredSpreads.length}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-slate-500">Прибыльных:</span>
                   <span className="font-medium text-green-600">{profitableSpreads.length}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Горячих (&gt;1.5%):</span>
                   <span className="font-medium text-orange-600">
-                    {spreads.filter(s => (s.net_spread_pct || s.spread_pct) >= 1.5).length}
+                    {filteredSpreads.filter(s => (s.net_spread_pct || s.spread_pct) >= 1.5).length}
                   </span>
                 </div>
               </div>
@@ -534,15 +655,19 @@ function App() {
             </div>
           </div>
 
+
           {/* Spreads Grid */}
           <div className="lg:col-span-3">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {spreads.length === 0 && !loading && (
+              {filteredSpreads.length === 0 && !loading && (
                 <div className="col-span-full text-center py-12 text-slate-500">
-                  Нет данных. Нажмите Refresh для загрузки.
+                  {spreads.length === 0 
+                    ? 'Нет данных. Нажмите Refresh для загрузки.'
+                    : `Все ${spreads.length} сигналов отфильтрованы. Попробуйте отключить фильтры.`
+                  }
                 </div>
               )}
-              {spreads.map((spread, index) => (
+              {filteredSpreads.map((spread, index) => (
                 <SpreadCard 
                   key={`${spread.pair}-${spread.buy_exchange}-${spread.sell_exchange}-${index}`} 
                   data={spread}
