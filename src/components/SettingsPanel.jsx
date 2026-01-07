@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { Settings, X, Plus, Trash2, Check, AlertCircle, Key, Eye, EyeOff, Shield } from 'lucide-react'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
 const EXCHANGES = [
   { id: 'binance', name: 'Binance', color: 'bg-yellow-500' },
@@ -17,6 +17,7 @@ export default function SettingsPanel({ isOpen, onClose, onSettingsChange }) {
   const [activeTab, setActiveTab] = useState('general')
   const [settings, setSettings] = useState({
     min_spread_threshold: 1.5,
+    max_spread_threshold: 15,
     blacklisted_coins: [],
     notifications_enabled: true,
     trading_mode: 'simulation',
@@ -46,7 +47,11 @@ export default function SettingsPanel({ isOpen, onClose, onSettingsChange }) {
   const fetchSettings = async () => {
     try {
       const response = await axios.get(`${API_BASE}/settings`)
-      setSettings(response.data)
+      setSettings(prev => ({
+        ...prev,
+        ...response.data,
+        max_spread_threshold: response.data.max_spread_threshold || 15
+      }))
     } catch (error) {
       console.error('Failed to fetch settings:', error)
     }
@@ -66,13 +71,18 @@ export default function SettingsPanel({ isOpen, onClose, onSettingsChange }) {
     setTimeout(() => setMessage(null), 3000)
   }
 
-  const updateThreshold = useCallback((value) => {
-    setSettings(prev => ({ ...prev, min_spread_threshold: value }))
+  const updateThreshold = useCallback((field, value) => {
+    setSettings(prev => ({ ...prev, [field]: value }))
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       try {
-        await axios.put(`${API_BASE}/settings/threshold`, { threshold: value })
-        showMessage(`Порог обновлён: ${value}%`)
+        if (field === 'min_spread_threshold') {
+          await axios.put(`${API_BASE}/settings/threshold`, { threshold: value })
+          showMessage(`Мин. порог: ${value}%`)
+        } else if (field === 'max_spread_threshold') {
+          await axios.put(`${API_BASE}/settings/max-threshold`, { threshold: value })
+          showMessage(`Макс. порог: ${value}%`)
+        }
         onSettingsChange?.()
       } catch (error) {
         showMessage('Ошибка обновления порога', 'error')
@@ -197,27 +207,64 @@ export default function SettingsPanel({ isOpen, onClose, onSettingsChange }) {
         <div className="p-4 space-y-6 overflow-y-auto flex-1">
           {activeTab === 'general' && (
             <>
-              {/* Threshold */}
+              {/* Min Threshold */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Минимальный спред: <span className="text-blue-600 font-bold">{settings.min_spread_threshold.toFixed(1)}%</span>
+                  Минимальный спред: <span className="text-green-600 font-bold">{settings.min_spread_threshold.toFixed(1)}%</span>
                 </label>
                 <input
                   type="range"
                   min="0"
-                  max="100"
+                  max="20"
                   step="0.5"
                   value={settings.min_spread_threshold}
-                  onChange={(e) => updateThreshold(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  onChange={(e) => updateThreshold('min_spread_threshold', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-green-600"
                 />
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
                   <span>0%</span>
+                  <span>10%</span>
+                  <span>20%</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  💡 Показывать только спреды выше этого порога.
+                </p>
+              </div>
+
+              {/* Max Threshold */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Максимальный спред: <span className="text-red-600 font-bold">{settings.max_spread_threshold.toFixed(1)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  step="1"
+                  value={settings.max_spread_threshold}
+                  onChange={(e) => updateThreshold('max_spread_threshold', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-red-600"
+                />
+                <div className="flex justify-between text-xs text-slate-500 mt-1">
+                  <span>5%</span>
                   <span>50%</span>
                   <span>100%</span>
                 </div>
                 <p className="text-xs text-slate-400 mt-2">
-                  💡 Показывать только спреды выше этого порога. Отрицательные спреды (убыточные) автоматически скрыты.
+                  ⚠️ Спреды выше этого порога — скорее всего ошибочные данные (нереальный арбитраж).
+                </p>
+              </div>
+
+              {/* Visual Range */}
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="text-xs text-slate-500 mb-2">Диапазон отображения:</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-green-600 font-bold">{settings.min_spread_threshold.toFixed(1)}%</span>
+                  <div className="flex-1 h-2 bg-gradient-to-r from-green-400 via-yellow-400 to-red-400 rounded-full"></div>
+                  <span className="text-red-600 font-bold">{settings.max_spread_threshold.toFixed(1)}%</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-2 text-center">
+                  Сигналы вне этого диапазона будут скрыты
                 </p>
               </div>
 
