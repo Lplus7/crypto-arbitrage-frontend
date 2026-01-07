@@ -254,61 +254,8 @@ const SpreadCard = ({ data, onTrade, tradingMode }) => {
                 </a>
               </div>
               
-              {/* Slippage */}
-              <div>
-                <h4 className="text-xs font-semibold text-slate-500 mb-2">📉 SLIPPAGE</h4>
-                <div className="grid grid-cols-4 gap-2 text-xs">
-                  {['100', '500', '1000', '5000'].map(amount => {
-                    const buySlip = liquidity.buy?.slippage?.[amount] || 0
-                    const sellSlip = liquidity.sell?.slippage?.[amount] || 0
-                    const total = buySlip + sellSlip * 0.5
-                    const color = total > 2 ? 'text-red-600' : total > 1 ? 'text-orange-600' : total > 0.5 ? 'text-yellow-600' : 'text-green-600'
-                    
-                    return (
-                      <div key={amount} className="text-center p-2 bg-slate-50 rounded">
-                        <div className="text-slate-400">${amount}</div>
-                        <div className={`font-mono font-bold ${color}`}>{total.toFixed(2)}%</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-              
-              {/* Глубина стакана */}
-              <div className="grid grid-cols-2 gap-3">
-                {liquidity.buy && (
-                  <div className="p-2 bg-green-50 rounded">
-                    <div className="text-xs text-green-600 font-medium">Покупка ({liquidity.buy.exchange})</div>
-                    <div className="text-sm font-bold">${liquidity.buy.depth_usdt?.toLocaleString()}</div>
-                    <div className="text-xs text-slate-500">Оптимум: ${liquidity.buy.optimal_size?.toLocaleString()}</div>
-                  </div>
-                )}
-                {liquidity.sell && (
-                  <div className="p-2 bg-red-50 rounded">
-                    <div className="text-xs text-red-600 font-medium">Продажа ({liquidity.sell.exchange})</div>
-                    <div className="text-sm font-bold">${liquidity.sell.depth_usdt?.toLocaleString()}</div>
-                    <div className="text-xs text-slate-500">Оптимум: ${liquidity.sell.optimal_size?.toLocaleString()}</div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Рекомендации */}
-              {liquidity.summary && (
-                <div className="p-2 bg-blue-50 rounded">
-                  <div className="text-xs text-blue-600 font-medium mb-1">📏 Рекомендации</div>
-                  <div className="text-sm">
-                    Оптимальная сумма: <span className="font-bold">${liquidity.summary.optimal_amount_usdt?.toLocaleString()}</span>
-                  </div>
-                  <div className="text-sm">
-                    Реальный профит: <span className={`font-bold ${getRealProfit(liquidity.summary.optimal_amount_usdt) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${getRealProfit(liquidity.summary.optimal_amount_usdt)?.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              )}
-              
               {/* Факторы риска */}
-              {liquidity.summary?.risk_factors && (
+              {liquidity?.summary?.risk_factors && (
                 <div className="text-xs space-y-1">
                   {liquidity.summary.risk_factors.map((factor, i) => (
                     <div key={i} className="text-slate-600">{factor}</div>
