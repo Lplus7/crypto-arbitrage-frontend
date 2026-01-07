@@ -395,7 +395,8 @@ function App() {
   const fetchSpreads = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await axios.get(`${API_BASE}/spreads/live`)
+      // Запрашиваем все сигналы без лимита
+      const response = await axios.get(`${API_BASE}/spreads/live?limit=10000`)
       setSpreads(response.data.spreads || [])
     } catch (error) {
       console.error("Ошибка API:", error)
